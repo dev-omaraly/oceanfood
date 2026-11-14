@@ -1,0 +1,25 @@
+{
+  "name": "oceanfood",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "أوشين فود — نظام المخزون والمبيعات (Supabase + Capacitor)",
+  "scripts": {
+    "vendor": "node scripts/copy-vendor.mjs",
+    "migrate": "node supabase/migrate-firebase-to-supabase.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/filesystem": "^6.0.1",
+    "@capacitor/share": "^6.0.2",
+    "@supabase/supabase-js": "^2.45.4",
+    "html2canvas": "1.4.1",
+    "jspdf": "2.5.1",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.1.2"
+  }
+}

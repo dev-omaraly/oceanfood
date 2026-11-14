@@ -1,0 +1,7 @@
+{
+  "appId": "com.oceanfood.inventory",
+  "appName": "أوشين فود",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "android": { "allowMixedContent": false }
+}
