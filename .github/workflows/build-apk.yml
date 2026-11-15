@@ -39,7 +39,7 @@ jobs:
           name: OceanFood-APK
           path: OceanFood.apk
       - name: Publish to Releases (latest)
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: apk-latest
           name: أحدث نسخة APK
