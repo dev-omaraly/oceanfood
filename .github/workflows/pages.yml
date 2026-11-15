@@ -18,7 +18,7 @@ jobs:
         with: { node-version: 20 }
       - run: npm install
       - run: node scripts/copy-vendor.mjs
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with: { path: www }
       - id: dep
         uses: actions/deploy-pages@v4
