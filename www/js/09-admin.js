@@ -10,6 +10,7 @@ ACT.morePage = async d => {
   if (d.p === "activity") await loadActivity();
   render(); window.scrollTo(0, 0);
 };
+ACT.closeSheet = () => closeSheet();
 ACT.logout = async () => { if (await confirmBox("تسجيل الخروج؟", "خروج")) signOut(); };
 
 VIEWS.more = function () {
@@ -25,7 +26,7 @@ VIEWS.more = function () {
     ${isSuper() ? tile("users", "👥", "المستخدمين والصلاحيات", "إضافة وتعديل وربط بالفروع") : ""}
     ${isAdmin() ? tile("settings", "⚙️", "إعدادات التطبيق", "الاسم، الشعار، بيانات الطباعة، حد الخصم") : ""}
     ${isSuper() ? tile("activity", "🧾", "سجل النشاط", "آخر العمليات") : ""}
-    <div class="card muted center mt2">${esc(appName())} · الإصدار 2.0 · قاعدة البيانات: Supabase</div>`;
+    <div class="card muted center mt2">تم تطويل البرنامج بواسطة المطور : Omar Aly</div>`;
 };
 const MOREPAGES = {};
 
@@ -44,12 +45,12 @@ MOREPAGES.branches = () => backBar("🏢 الفروع") + `
       <button class="btn ghost sm" data-act="branchRename" data-id="${b.id}">✏️ الاسم</button><button class="btn danger sm" data-act="branchOff" data-id="${b.id}">إيقاف</button></div></div>`).join("") || `<div class="empty">لا توجد فروع بعد</div>`}
   <div class="tiny mt">باسورد الفرع بيتطلب في شاشة الدخول قبل اسم المستخدم. كل مستخدم بيتبع فرع واحد وبيشوف بيانات فرعه بس.</div>`;
 ACT.addBranch = () => openSheet(`<h2>فرع جديد</h2>
-  <div class="field"><label>اسم الفرع</label><input type="text" id="bName" placeholder="مثال: فرع حلوان"></div>
-  <div class="field"><label>باسورد الفرع</label><input type="text" id="bPw" placeholder="3 حروف على الأقل"></div>
-  <div class="row"><button class="btn ghost grow" onclick="closeSheet()">إلغاء</button><button class="btn grow" id="bSave">إنشاء</button></div>`,
+  <div class="field"><label>اسم الفرع</label><input type="text" id="bName" placeholder="مثال: فرع الهرم"></div>
+  <div class="field"><label>باسورد الفرع</label><input type="text" id="bPw" placeholder="6 حروف على الأقل"></div>
+  <div class="row"><button class="btn ghost grow" data-act="closeSheet">إلغاء</button><button class="btn grow" id="bSave">إنشاء</button></div>`,
   s => $("#bSave", s).onclick = async () => {
     const name = $("#bName", s).value.trim(), pw = $("#bPw", s).value.trim();
-    if (!name || pw.length < 3) { toast("اكتب الاسم وباسورد (3 حروف على الأقل)"); return; }
+    if (!name || pw.length < 6) { toast("اكتب الاسم وباسورد (6 حروف على الأقل)"); return; }
     const { data, error } = await sb.from("branches").insert({ name }).select().single();
     if (error) { toast(error.code === "23505" ? "اسم الفرع موجود" : error.message); return; }
     try { await rpc("set_branch_password", { p_branch: data.id, p_password: pw }); } catch (e) { toast("الفرع اتعمل لكن الباسورد فشل: " + e.message); }
@@ -58,7 +59,7 @@ ACT.addBranch = () => openSheet(`<h2>فرع جديد</h2>
   });
 ACT.branchPw = async d => {
   const pw = await askText("باسورد الفرع", { label: "الباسورد الجديد", note: branchName(d.id) }); if (pw === null) return;
-  if (pw.trim().length < 3) { toast("قصير جدًا"); return; }
+  if (pw.trim().length < 6) { toast("الباسورد قصير (6 حروف على الأقل)"); return; }
   try { await rpc("set_branch_password", { p_branch: d.id, p_password: pw.trim() }); toast("تم تغيير الباسورد"); logActivity("تغيير باسورد فرع", branchName(d.id)); } catch (e) { toast(e.message); }
 };
 ACT.branchRename = async d => {
@@ -81,7 +82,7 @@ MOREPAGES.stores = () => backBar("🏪 المتاجر وأسعارها") + `
       <div class="row wrap mt">${isSuper() ? `<button class="btn sm" data-act="editPrices" data-id="${s.id}">💰 الأسعار</button>` : ""}
         <button class="btn ghost sm" data-act="storeBranches" data-id="${s.id}">📍 الفروع</button><button class="btn ghost sm" data-act="storeRename" data-id="${s.id}">✏️</button>
         ${isSuper() ? `<button class="btn danger sm" data-act="storeDel" data-id="${s.id}">🗑️</button>` : ""}</div></div>`; }).join("") || `<div class="empty">لا توجد متاجر</div>`}
-  <div class="tiny mt">سعر الكرتونة بيتحدد لكل متجر على حدة وبينطبق على كل فروع المتجر. لو صنف ملوش سعر للمتجر بيتاخد السعر الافتراضي.</div>`;
+  <div class="tiny mt">سعر الكرتونة وخصم الصنف وخصم الفاتورة بيتحددوا لكل متجر على حدة وبينطبقوا على كل فروع المتجر. لو صنف ملوش سعر للمتجر بيتاخد السعر الافتراضي.</div>`;
 ACT.addStore = async () => { const n = await askText("متجر جديد", { label: "اسم المتجر" }); if (!n?.trim()) return; if (await quickInsert("stores", { name: n.trim() }, "stores")) render(); };
 ACT.storeRename = async d => { const s = S.stores.find(x => x.id === d.id); const n = await askText("اسم المتجر", { label: "الاسم", value: s.name }); if (!n?.trim()) return; const { error } = await sb.from("stores").update({ name: n.trim() }).eq("id", d.id); if (error) { toast(error.message); return; } await GLOBAL_TABLES.stores(); render(); };
 ACT.storeDel = async d => {
@@ -102,10 +103,10 @@ ACT.sbrDel = async d => { if (!(await askDeletePassword("حذف فرع متجر"
 ACT.editPrices = d => {
   if (!isSuper()) return;
   const store = S.stores.find(s => s.id === d.id);
-  const w = S.wiz = { kind: "prices", store, edits: {}, q: "", saving: false };
-  Object.entries(S.prices[store.id] || {}).forEach(([pid, p]) => { w.edits[pid] = String(p); });
-  w.orig = { ...w.edits };
-  w.dirty = () => JSON.stringify(w.edits) !== JSON.stringify(w.orig);
+  const w = S.wiz = { kind: "prices", store, edits: {}, disc: {}, inv: String(num(store.invoice_discount_pct) || ""), q: "", saving: false };
+  Object.entries(S.prices[store.id] || {}).forEach(([pid, p]) => { w.edits[pid] = String(p); const dd = num(S.discounts[store.id]?.[pid]); if (dd) w.disc[pid] = String(dd); });
+  w.orig = JSON.stringify([w.edits, w.disc, w.inv]);
+  w.dirty = () => JSON.stringify([w.edits, w.disc, w.inv]) !== w.orig;
   w.render = () => priceEditorHtml(w);
   wizGo();
 };
@@ -113,28 +114,37 @@ function priceListHtml(w) {
   const q = normAr(w.q);
   const list = S.products.filter(p => !q || normAr(p.name).includes(q) || normAr(p.code).includes(q));
   return Object.entries(groupByCategory(list)).map(([cat, ps]) => `<div class="sec">${esc(cat)}</div>` + ps.map(p => `<div class="item"><div class="between"><div><b>${esc(p.name)}</b><div class="tiny">${esc(p.code)} · افتراضي ${fmt(p.base_price)}</div></div>
-    <input type="number" inputmode="decimal" style="width:110px;text-align:center;font-weight:800" data-in="priceEdit" data-p="${p.id}" placeholder="${fmt(p.base_price)}" value="${esc(w.edits[p.id] ?? "")}"></div></div>`).join("")).join("") || `<div class="empty">لا توجد أصناف</div>`;
+    <div class="row" style="gap:6px"><input type="number" inputmode="decimal" style="width:92px;text-align:center;font-weight:800" data-in="priceEdit" data-p="${p.id}" placeholder="${fmt(p.base_price)}" value="${esc(w.edits[p.id] ?? "")}">
+    <input type="number" inputmode="decimal" min="0" max="100" style="width:70px;text-align:center;font-weight:800;color:var(--green)" data-in="discEdit" data-p="${p.id}" placeholder="خصم%" value="${esc(w.disc[p.id] ?? "")}"></div></div></div>`).join("")).join("") || `<div class="empty">لا توجد أصناف</div>`;
 }
 function priceEditorHtml(w) {
   const others = S.stores.filter(s => s.id !== w.store.id && Object.keys(S.prices[s.id] || {}).length);
-  return `<div class="between mb"><div><div class="pagetitle" style="margin:0">💰 أسعار ${esc(w.store.name)}</div><div class="tiny">سعر الكرتونة — بينطبق على كل فروع المتجر</div></div><button class="btn ghost sm" data-act="wizCancel">✕ إغلاق</button></div>
+  return `<div class="between mb"><div><div class="pagetitle" style="margin:0">💰 أسعار ${esc(w.store.name)}</div><div class="tiny">سعر الكرتونة + خصم % لكل صنف — بينطبق على كل فروع المتجر</div></div><button class="btn ghost sm" data-act="wizCancel">✕ إغلاق</button></div>
+    <div class="card"><div class="field" style="margin-bottom:0"><label>🏷️ خصم على الفاتورة كلها (%) — بيتخصم من إجمالي الإذن بعد خصومات الأصناف</label><input type="number" inputmode="decimal" min="0" max="100" data-in="invDiscEdit" value="${esc(w.inv)}" placeholder="0"></div></div>
+    <div class="tiny mb">لو حددت خصم لصنف من غير سعر، هياخد السعر الافتراضي بتاعه.</div>
     <div class="field"><input type="search" data-in="priceSearch" placeholder="🔎 بحث عن صنف" value="${esc(w.q)}"></div>
     ${others.length ? `<div class="field"><label>نسخ الأسعار من متجر آخر</label><select data-ch="priceCopy"><option value="">اختار متجر...</option>${others.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></div>` : ""}
     <div id="priceList">${priceListHtml(w)}</div>
     <div class="sticky"><button class="btn green block" data-act="pricesSave" ${w.saving ? "disabled" : ""}>💾 حفظ الأسعار</button></div>`;
 }
 INP.priceEdit = (v, el) => { S.wiz.edits[el.dataset.p] = v; };
+INP.discEdit = (v, el) => { S.wiz.disc[el.dataset.p] = v; };
+INP.invDiscEdit = v => { S.wiz.inv = v; };
 INP.priceSearch = v => { S.wiz.q = v; $("#priceList").innerHTML = priceListHtml(S.wiz); };
-CHG.priceCopy = v => { if (!v) return; const w = S.wiz; Object.entries(S.prices[v] || {}).forEach(([pid, p]) => { w.edits[pid] = String(p); }); render(); toast("تم النسخ — راجع واضغط حفظ"); };
+CHG.priceCopy = v => { if (!v) return; const w = S.wiz; Object.entries(S.prices[v] || {}).forEach(([pid, p]) => { w.edits[pid] = String(p); const dd = num(S.discounts[v]?.[pid]); if (dd) w.disc[pid] = String(dd); else delete w.disc[pid]; }); render(); toast("تم النسخ — راجع واضغط حفظ"); };
 ACT.pricesSave = async () => {
   const w = S.wiz; w.saving = true;
   const up = [], del = [];
-  S.products.forEach(p => { const v = (w.edits[p.id] ?? "").toString().trim(); const had = S.prices[w.store.id]?.[p.id] !== undefined;
-    if (v !== "" && !isNaN(Number(v))) up.push({ store_id: w.store.id, product_id: p.id, price: Number(v) }); else if (had) del.push(p.id); });
+  const pctOf = x => Math.min(100, Math.max(0, num(x)));
+  S.products.forEach(p => { const v = (w.edits[p.id] ?? "").toString().trim(); const dp = pctOf(w.disc[p.id]); const had = S.prices[w.store.id]?.[p.id] !== undefined;
+    if (v !== "" && !isNaN(Number(v))) up.push({ store_id: w.store.id, product_id: p.id, price: Number(v), discount_pct: dp });
+    else if (dp > 0) up.push({ store_id: w.store.id, product_id: p.id, price: num(p.base_price), discount_pct: dp });
+    else if (had) del.push(p.id); });
   try {
+    { const { error } = await sb.from("stores").update({ invoice_discount_pct: pctOf(w.inv) }).eq("id", w.store.id); if (error) throw error; await GLOBAL_TABLES.stores(); }
     if (up.length) { const { error } = await sb.from("store_prices").upsert(up); if (error) throw error; }
     if (del.length) { const { error } = await sb.from("store_prices").delete().eq("store_id", w.store.id).in("product_id", del); if (error) throw error; }
-    await GLOBAL_TABLES.store_prices(); S.ver++; logActivity("تحديث أسعار متجر", `${w.store.name}: ${up.length} سعر`);
+    await GLOBAL_TABLES.store_prices(); S.ver++; logActivity("تحديث أسعار وخصومات متجر", `${w.store.name}: ${up.length} صنف · خصم الفاتورة ${pctOf(w.inv)}%`);
     S.wiz = null; toast("تم حفظ الأسعار"); render(); window.scrollTo(0, 0);
   } catch (e) { w.saving = false; toast("تعذر الحفظ: " + e.message); }
 };
@@ -144,7 +154,7 @@ MOREPAGES.sups = () => backBar("👷 المشرفين المتعاقدين") + `
   ${S.supervisors.map(s => `<div class="item"><div class="t"><span>${esc(s.name)}</span><button class="btn danger sm" data-act="supDel" data-id="${s.id}">حذف</button></div><div class="m">${esc(S.stores.find(x => x.id === s.store_id)?.name || "كل المتاجر")}</div></div>`).join("") || `<div class="empty"><div class="big">👷</div>لا يوجد مشرفين</div>`}`;
 ACT.supAdd = () => openSheet(`<h2>مشرف متعاقد جديد</h2><div class="field"><label>الاسم</label><input type="text" id="sName"></div>
   <div class="field"><label>المتجر</label><select id="sStore"><option value="">كل المتاجر</option>${S.stores.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></div>
-  <div class="row"><button class="btn ghost grow" onclick="closeSheet()">إلغاء</button><button class="btn grow" id="sSave">حفظ</button></div>`,
+  <div class="row"><button class="btn ghost grow" data-act="closeSheet">إلغاء</button><button class="btn grow" id="sSave">حفظ</button></div>`,
   s => $("#sSave", s).onclick = async () => { const n = $("#sName", s).value.trim(); if (!n) { toast("اكتب الاسم"); return; }
     if (await quickInsert("supervisors", { name: n, store_id: $("#sStore", s).value || null }, "supervisors")) { closeSheet(); render(); } });
 ACT.supDel = async d => { if (!(await confirmBox("حذف المشرف؟", "حذف", true))) return; await sb.from("supervisors").delete().eq("id", d.id); await GLOBAL_TABLES.supervisors(); render(); };
@@ -170,8 +180,8 @@ ACT.userForm = async d => {
   const loadReps = async b => { const { data } = await sb.from("reps").select("*").eq("branch_id", b).order("name"); repsForBranch = data || []; };
   if (branch) await loadReps(branch);
   const draw = () => openSheet(`<h2>${ex ? "تعديل: " + esc(ex.username) : "مستخدم جديد"}</h2>
-    ${ex ? "" : `<div class="field"><label>اسم المستخدم</label><input type="text" id="uName" dir="ltr" autocapitalize="off" placeholder="مثال: ahmed.helwan"></div>
-    <div class="field"><label>كلمة السر (6 أحرف على الأقل)</label><input type="text" id="uPw" dir="ltr"></div>`}
+    ${ex ? "" : `<div class="field"><label>اسم المستخدم</label><input type="text" id="uName" dir="ltr" autocapitalize="off" placeholder="مثال: omar.haram"></div>
+    <div class="field"><label>كلمة السر (8 أحرف على الأقل)</label><input type="text" id="uPw" dir="ltr"></div>`}
     <div class="field"><label>الدور</label><div class="chips">${["user", "admin", "rep", "superadmin"].map(r => `<button class="chip ${role === r ? "on" : ""}" data-role="${r}">${ROLE_LABEL[r]}</button>`).join("")}</div></div>
     ${role !== "superadmin" ? `<div class="field"><label>الفرع</label><select id="uBranch">${S.branches.map(b => `<option value="${b.id}" ${b.id === branch ? "selected" : ""}>${esc(b.name)}</option>`).join("")}</select></div>` : ""}
     <div class="field"><label>الكنية (تظهر جنب اسمه — مثال: أمين مخزن)</label><input type="text" id="uTitle" value="${esc(ex?.title || "")}"></div>
@@ -185,7 +195,7 @@ ACT.userForm = async d => {
       const ub = $("#uBranch", s); if (ub) ub.onchange = async () => { snap(s); branch = ub.value; await loadReps(branch); draw(); };
       $("#uNo", s).onclick = closeSheet;
       $("#uOk", s).onclick = () => saveUser(s);
-      const pw = $("#uPass", s); if (pw) pw.onclick = async () => { const p = await askText("كلمة سر جديدة", { label: ex.username, note: "6 أحرف على الأقل" }); if (!p) return; try { await rpc("admin_set_password", { p_user: ex.id, p_password: p }); toast("تم تغيير كلمة السر"); logActivity("تغيير كلمة سر", ex.username); } catch (e) { toast(e.message); } draw(); };
+      const pw = $("#uPass", s); if (pw) pw.onclick = async () => { const p = await askText("كلمة سر جديدة", { label: ex.username, note: "8 أحرف على الأقل" }); if (!p) return; try { await rpc("admin_set_password", { p_user: ex.id, p_password: p }); toast("تم تغيير كلمة السر"); logActivity("تغيير كلمة سر", ex.username); } catch (e) { toast(e.message); } draw(); };
       const dl = $("#uDel", s); if (dl) dl.onclick = async () => { closeSheet(); if (!(await confirmBox(`حذف المستخدم ${ex.username} نهائيًا؟`, "حذف", true))) return; try { await rpc("admin_delete_user", { p_user: ex.id }); await loadUsers(); toast("تم الحذف"); render(); } catch (e) { toast(e.message); } };
     });
   let draft = {};
@@ -202,7 +212,7 @@ ACT.userForm = async d => {
       closeSheet(); await loadUsers(); logActivity("تعديل مستخدم", ex.username); toast("تم الحفظ"); render(); return;
     }
     const username = $("#uName", s).value.trim().toLowerCase(), pw = $("#uPw", s).value;
-    if (!username || pw.length < 6) { toast("اكتب اسم المستخدم وكلمة سر 6 أحرف على الأقل"); return; }
+    if (!username || pw.length < 8) { toast("اكتب اسم المستخدم وكلمة سر 8 أحرف على الأقل"); return; }
     const c = getConn(); const nostore = { getItem() { return null; }, setItem() { }, removeItem() { } };
     const sb2 = supabase.createClient(c.url, c.key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storage: nostore } });
     const { data, error } = await sb2.auth.signUp({ email: emailOf(username), password: pw });
@@ -232,7 +242,7 @@ ACT.saveSettings = async () => {
 };
 ACT.saveLogo = async () => { const f = $("#sLogo").files[0]; if (!f) { toast("اختار صورة"); return; } const url = await resizeImage(f, 700, .9, true); if (await saveSetting("logo_url", url)) { toast("تم حفظ الشعار"); render(); } };
 ACT.resetLogo = async () => { if (await saveSetting("logo_url", "")) render(); };
-ACT.setDelPw = async () => { const p = await askText("كلمة سر الحذف الجديدة", { label: "الكلمة", type: "password" }); if (!p) return; try { await rpc("set_delete_password", { p }); toast("تم تغيير كلمة سر الحذف"); logActivity("تغيير كلمة سر الحذف"); } catch (e) { toast(e.message); } };
+ACT.setDelPw = async () => { const p = await askText("كلمة سر الحذف الجديدة", { label: "الكلمة (6 أحرف على الأقل)", type: "password" }); if (!p) return; if (p.length < 6) { toast("الكلمة قصيرة (6 أحرف على الأقل)"); return; } try { await rpc("set_delete_password", { p }); toast("تم تغيير كلمة سر الحذف"); logActivity("تغيير كلمة سر الحذف"); } catch (e) { toast(e.message); } };
 
 /* ============================ سجل النشاط ============================ */
 async function loadActivity() {

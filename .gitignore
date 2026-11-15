@@ -2,3 +2,10 @@ node_modules/
 android/
 www/vendor/
 .DS_Store
+.env
+.env.*
+*.keystore
+*.jks
+*.pem
+service-account*.json
+firebase-key*.json

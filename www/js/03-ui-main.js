@@ -115,7 +115,7 @@ ACT.lgNext = async () => {
     const ok = await rpc("check_branch_password", { p_branch: L.branchId, p_password: pw });
     if (!ok) { L.err = "باسورد الفرع غير صحيح"; render(); return; }
     L.step = 2; L.admin = false; L.err = ""; render(); setTimeout(() => $("#lgUser")?.focus(), 50);
-  } catch (e) { L.err = "تعذر التحقق من الباسورد"; render(); }
+  } catch (e) { L.err = e.locked ? e.message : "تعذر التحقق من الباسورد"; render(); }
 };
 ACT.lgAdmin = () => { L.step = 2; L.admin = true; L.err = ""; render(); };
 ACT.lgBack = () => { L.step = 1; L.err = ""; render(); };

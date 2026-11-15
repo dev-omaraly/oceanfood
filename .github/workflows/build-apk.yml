@@ -23,6 +23,8 @@ jobs:
       - name: Generate icons
         continue-on-error: true
         run: npx capacitor-assets generate --android --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#ffffff'
+      - name: Harden Android manifest (no backup)
+        run: sed -i 's/android:allowBackup="true"/android:allowBackup="false"/' android/app/src/main/AndroidManifest.xml
       - name: Sync web assets
         run: npx cap sync android
       - name: Build debug APK

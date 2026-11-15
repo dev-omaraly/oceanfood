@@ -62,7 +62,7 @@ function qtySheet(o) {
         const qd = $("#qDel", s); if (qd) qd.onclick = () => { closeSheet(); o.onRemove(); };
         $("#qOk", s).onclick = async () => {
           setV(rd());
-          if (o.discount && !(await approveHighDiscount(c.disc))) return;
+          if (o.discount && c.disc > num(o.defaultDisc) && !(await approveHighDiscount(c.disc))) return;
           closeSheet();
           o.onDone({ qty: c.qty, packQty: c.mode === "pack" ? c.packQty : null, discountPct: c.disc / 100, reason: c.reason === "أخرى" ? (c.other || "أخرى") : c.reason });
         };
@@ -88,11 +88,14 @@ function groupedItemRows(items, cols, rowFn) {
 function voucherDoc(v) {
   const rows = groupedItemRows(v.items || [], 5, it => `<tr><td class="l">${esc(it.name)}</td><td>${fmt(it.qty)}${it.packQty ? ` <span style="font-size:10px;color:#666">(${fmt(it.packQty)} علبة)</span>` : ""}</td><td>${fmt(it.price)}</td><td>${(num(it.discountPct) * 100).toFixed(0)}%</td><td>${fmt(lineTotal(it))}</td></tr>`);
   const disc = (v.items || []).reduce((s, it) => s + num(it.qty) * num(it.price) * num(it.discountPct), 0);
+  const ipct = num(v.invoice_discount_pct), sub = itemsTotal(v.items || []), idisc = round2(sub - num(v.total));
   return docShell("إذن صرف", v.number, [
     ["التاريخ", v.date], ["الفرع", branchName(v.branch_id)], ["المندوب", v.rep_name], ["التاجر", v.merchant_label],
     v.supervisor_name ? ["المشرف المتعاقد", v.supervisor_name] : null
   ], `<table><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الخصم</th><th>الإجمالي</th></tr>${rows}</table>`,
     `${disc > 0 ? `<div class="tot" style="font-weight:600;font-size:12.5px"><span>إجمالي الخصم</span><span>${fmt(disc)}</span></div>` : ""}
+     ${ipct > 0 ? `<div class="tot" style="font-weight:600;font-size:12.5px"><span>إجمالي الأصناف</span><span>${fmt(sub)}</span></div>
+     <div class="tot" style="font-weight:600;font-size:12.5px"><span>خصم الفاتورة (${fmt(ipct)}%)</span><span>- ${fmt(idisc)}</span></div>` : ""}
      <div class="tot"><span>الإجمالي</span><span>${fmt(v.total)}</span></div>
      <div class="sign"><div>المستلم</div><div>المندوب</div><div>أمين المخزن</div></div>`);
 }
@@ -144,7 +147,7 @@ function renderVoucherWiz(w) {
       <div class="sticky"><div class="row"><button class="btn ghost" data-act="vwBack">‹ رجوع</button><button class="btn grow" data-act="vwNext" ${w.items.length ? "" : "disabled"}>مراجعة الإذن ›</button></div></div>`;
   }
   if (w.step === 4) {
-    const total = itemsTotal(w.items);
+    const T = voucherTotals(w.items, invDiscOf(w.store.id));
     return wizHead("مراجعة وحفظ", 4, 4) + `
       <div class="card">
         <div class="between"><span class="muted">الفرع</span><b>${esc(branchName(S.branchId))}</b></div>
@@ -154,7 +157,9 @@ function renderVoucherWiz(w) {
         <div class="field mt" style="margin-bottom:0"><label>تاريخ الإذن</label><input type="date" id="vwDate" data-ch="vwDate" value="${w.date}"></div>
       </div>
       ${voucherCartHtml(w, true)}
-      <div class="card between" style="font-size:17px;font-weight:800"><span>الإجمالي الكلي</span><span>${fmt(total)}</span></div>
+      ${T.pct > 0 ? `<div class="card"><div class="between"><span class="muted">إجمالي الأصناف</span><b>${fmt(T.sub)}</b></div>
+        <div class="between mt"><span class="muted">خصم الفاتورة (${fmt(T.pct)}%)</span><b style="color:var(--red)">- ${fmt(T.disc)}</b></div></div>` : ""}
+      <div class="card between" style="font-size:17px;font-weight:800"><span>الإجمالي الكلي</span><span>${fmt(T.total)}</span></div>
       <div class="sticky"><div class="row"><button class="btn ghost" data-act="vwBack">‹ تعديل</button><button class="btn red grow" data-act="vwSave" ${w.saving ? "disabled" : ""}>✅ حفظ الإذن</button></div></div>`;
   }
   const v = w.saved;
@@ -176,18 +181,20 @@ function voucherProductsHtml(w) {
       <div class="inner"><div class="grid2">${ps.map(p => {
       const pr = priceFor(w.store.id, p), st = stockOf(p), inC = w.items.some(it => it.code === p.code);
       return `<button class="pick ${inC ? "on" : ""}" data-act="vwAdd" data-code="${esc(p.code)}">${p.image_url ? `<img src="${esc(p.image_url)}" alt="">` : ""}<span>${esc(p.name)}</span>
-          <small>${fmt(pr.price)} ج${pr.custom ? "" : ` · <b style="color:var(--red)">سعر افتراضي</b>`} · متاح <b style="color:${st <= LOW_STOCK ? "var(--red)" : "inherit"}">${fmt(st)}</b></small></button>`;
+          <small>${fmt(pr.price)} ج${pr.discount ? ` · <b style="color:var(--green)">خصم ${fmt(pr.discount)}%</b>` : ""}${pr.custom ? "" : ` · <b style="color:var(--red)">سعر افتراضي</b>`} · متاح <b style="color:${st <= LOW_STOCK ? "var(--red)" : "inherit"}">${fmt(st)}</b></small></button>`;
     }).join("")}</div></div></details>`;
   }).join("");
 }
 function voucherCartHtml(w, review) {
   if (!w.items.length) return `<div class="empty"><div class="big">🛒</div>لم تُضف أصناف بعد</div>`;
   const g = {}; w.items.forEach((it, i) => { const c = it.category || "أخرى"; (g[c] = g[c] || []).push([it, i]); });
+  const ip = w.store ? invDiscOf(w.store.id) : 0;
+  const tail = ip > 0 ? `<div class="card between mt"><span>🏷️ خصم الفاتورة (${fmt(ip)}%)</span><b>${fmt(voucherTotals(w.items, ip).total)} بعد الخصم</b></div>` : "";
   return `<div class="sec">أصناف الإذن (${w.items.length})</div>` + Object.entries(g).map(([c, list]) => `
     <div class="tiny" style="margin:4px 4px">${esc(c)}</div>
     ${list.map(([it, i]) => `<div class="item"><div class="t"><span>${esc(it.name)} × ${fmt(it.qty)}${it.packQty ? ` <span class="tiny">(${fmt(it.packQty)} علبة)</span>` : ""}</span><span style="color:var(--brand2)">${fmt(lineTotal(it))}</span></div>
       <div class="between"><div class="m">سعر ${fmt(it.price)} · خصم ${(num(it.discountPct) * 100).toFixed(0)}%</div>
-      <div class="row"><button class="btn ghost sm" data-act="vwEdit" data-i="${i}">تعديل</button><button class="btn danger sm" data-act="vwDel" data-i="${i}">حذف</button></div></div></div>`).join("")}`).join("");
+      <div class="row"><button class="btn ghost sm" data-act="vwEdit" data-i="${i}">تعديل</button><button class="btn danger sm" data-act="vwDel" data-i="${i}">حذف</button></div></div></div>`).join("")}`).join("") + tail;
 }
 
 INP.vwSearch = v => { const w = S.wiz; if (!w || w.kind !== "voucher") return; w.q = v; $("#vwProducts").innerHTML = voucherProductsHtml(w); };
@@ -203,8 +210,8 @@ ACT.vwAdd = d => {
   const w = S.wiz; const p = productByCode(d.code); const pr = priceFor(w.store.id, p);
   const ex = w.items.find(it => it.code === p.code);
   qtySheet({
-    title: p.name, sub: `السعر ${fmt(pr.price)} · متاح ${fmt(stockOf(p))} ${p.unit}`, price: pr.price, stock: stockOf(p), upc: upcOf(p), allowPack: p.unit === "كرتونة",
-    discount: true, qty: ex?.qty, packQty: ex?.packQty, discountPct: ex ? num(ex.discountPct) * 100 : 0, okText: ex ? "تحديث" : "إضافة للإذن",
+    title: p.name, sub: `السعر ${fmt(pr.price)}${pr.discount ? ` · خصم الصنف ${fmt(pr.discount)}%` : ""} · متاح ${fmt(stockOf(p))} ${p.unit}`, defaultDisc: pr.discount, price: pr.price, stock: stockOf(p), upc: upcOf(p), allowPack: p.unit === "كرتونة",
+    discount: true, qty: ex?.qty, packQty: ex?.packQty, discountPct: ex ? num(ex.discountPct) * 100 : pr.discount, okText: ex ? "تحديث" : "إضافة للإذن",
     onDone: c => {
       const it = { code: p.code, name: p.name, category: p.category || "", unit: p.unit, price: pr.price, qty: c.qty, discountPct: c.discountPct, packQty: c.packQty, unitsPerCarton: c.packQty ? upcOf(p) : null };
       if (ex) Object.assign(ex, it); else w.items.push(it);
@@ -222,7 +229,7 @@ ACT.vwSave = async () => {
     const row = {
       branch_id: S.branchId, number, date: w.date, rep_id: w.rep.id, rep_name: w.rep.name,
       store_id: w.store.id, store_branch_id: w.sbr?.id || null, merchant_label: merchantLabelOf(w), supervisor_name: w.sup || null,
-      items: w.items, total: itemsTotal(w.items), created_by: S.me.id, created_by_name: S.me.username
+      items: w.items, invoice_discount_pct: voucherTotals(w.items, invDiscOf(w.store.id)).pct, total: voucherTotals(w.items, invDiscOf(w.store.id)).total, created_by: S.me.id, created_by_name: S.me.username
     };
     const { data, error } = await sb.from("vouchers").insert(row).select().single();
     if (error) throw error;

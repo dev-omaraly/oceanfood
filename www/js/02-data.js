@@ -6,7 +6,7 @@ let sb = null;
 const S = {
   session: null, me: null,
   branches: [], branchId: "",
-  products: [], stores: [], storeBranches: [], priceRows: [], prices: {}, supervisors: [], settings: {},
+  products: [], stores: [], storeBranches: [], priceRows: [], prices: {}, discounts: {}, supervisors: [], settings: {},
   reps: [], openingRows: [], vouchers: [], returns: [], incoming: [], stocktakes: [], deliveries: [], unloads: [],
   users: [], activity: [],
   tab: "home", sub: {}, ver: 0, wiz: null, dirty: false
@@ -66,7 +66,10 @@ const logoUrl = () => setting("logo_url", "") || "logo.png";
 /* ---------- RPC / تحميل ---------- */
 async function rpc(name, args) {
   const { data, error } = await sb.rpc(name, args || {});
-  if (error) throw error;
+  if (error) {
+    if (/too_many_attempts/.test(error.message || "")) { const e = new Error("محاولات غلط كتير — استنى 10 دقايق وحاول تاني"); e.locked = true; throw e; }
+    throw error;
+  }
   return data;
 }
 async function fetchAll(table, build, order = "created_at") {
@@ -89,7 +92,7 @@ const GLOBAL_TABLES = {
   products: () => fetchAll("products", null, "sort_no").then(r => { S.products = r.sort((a, b) => (a.sort_no - b.sort_no) || a.code.localeCompare(b.code)); }),
   stores: () => fetchAll("stores", null, "name").then(r => { S.stores = r.sort((a, b) => a.name.localeCompare(b.name, "ar")); }),
   store_branches: () => fetchAll("store_branches", null, "name").then(r => { S.storeBranches = r; }),
-  store_prices: () => fetchAll("store_prices", null, null).then(r => { S.priceRows = r; S.prices = {}; r.forEach(x => { (S.prices[x.store_id] = S.prices[x.store_id] || {})[x.product_id] = Number(x.price); }); }),
+  store_prices: () => fetchAll("store_prices", null, null).then(r => { S.priceRows = r; S.prices = {}; S.discounts = {}; r.forEach(x => { (S.prices[x.store_id] = S.prices[x.store_id] || {})[x.product_id] = Number(x.price); (S.discounts[x.store_id] = S.discounts[x.store_id] || {})[x.product_id] = Number(x.discount_pct || 0); }); }),
   supervisors: () => fetchAll("supervisors", null, "name").then(r => { S.supervisors = r; }),
   settings: () => fetchAll("settings", null, "key").then(r => { S.settings = {}; r.forEach(x => { S.settings[x.key] = x.value; }); }),
   branches: () => fetchAll("branches", null, "name").then(r => { S.branches = r.filter(b => b.active); })
@@ -197,11 +200,18 @@ const upcOf = p => Number(p?.units_per_carton) || 4;
 
 function priceFor(storeId, p) {
   const sp = S.prices[storeId];
-  if (sp && sp[p.id] !== undefined && sp[p.id] !== null) return { price: Number(sp[p.id]), custom: true };
-  return { price: num(p.base_price), custom: false };
+  if (sp && sp[p.id] !== undefined && sp[p.id] !== null) return { price: Number(sp[p.id]), custom: true, discount: num(S.discounts[storeId]?.[p.id]) };
+  return { price: num(p.base_price), custom: false, discount: 0 };
 }
 const lineTotal = it => num(it.qty) * num(it.price) * (1 - num(it.discountPct));
 const itemsTotal = items => round2(items.reduce((s, it) => s + lineTotal(it), 0));
+/* خصم الفاتورة كلها (نسبة بيحددها السوبر أدمن لكل متجر) */
+const invDiscOf = storeId => num(S.stores.find(s => s.id === storeId)?.invoice_discount_pct);
+function voucherTotals(items, invPct) {
+  const raw = items.reduce((s, it) => s + lineTotal(it), 0), pct = num(invPct);
+  const sub = round2(raw), total = round2(raw * (1 - pct / 100));
+  return { sub, pct, disc: round2(sub - total), total };
+}
 const qtyLabel = it => `${fmt(it.qty)} ${it.unit || ""}${it.packQty ? ` (${fmt(it.packQty)} علبة)` : ""}`;
 
 function categories() {
@@ -226,7 +236,7 @@ async function askDeletePassword(msg) {
   const pw = await askText("كلمة سر الحذف", { label: "اكتب كلمة سر الحذف للمتابعة", type: "password", note: msg || "", okText: "متابعة" });
   if (pw === null) return false;
   try { const ok = await rpc("check_delete_password", { p: pw }); if (!ok) toast("كلمة سر الحذف غير صحيحة"); return !!ok; }
-  catch (e) { toast("تعذر التحقق"); return false; }
+  catch (e) { toast(e.locked ? e.message : "تعذر التحقق"); return false; }
 }
 const maxDiscount = () => Number(setting("max_discount_pct", 15));
 async function approveHighDiscount(pct) {
@@ -234,5 +244,5 @@ async function approveHighDiscount(pct) {
   const pw = await askText("موافقة على خصم مرتفع", { label: "كلمة سر أدمن", type: "password", note: `الخصم ${pct}% أعلى من الحد المسموح (${lim}%). اكتب كلمة سر أدمن للموافقة.`, okText: "موافقة" });
   if (pw === null) return false;
   try { const ok = await rpc("verify_admin_password", { p: pw }); if (!ok) { toast("كلمة السر غير صحيحة"); return false; } logActivity("موافقة على خصم مرتفع", pct + "%"); return true; }
-  catch (e) { toast("تعذر التحقق"); return false; }
+  catch (e) { toast(e.locked ? e.message : "تعذر التحقق"); return false; }
 }

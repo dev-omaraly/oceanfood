@@ -16,7 +16,7 @@ function reportData() {
   const byRep = {}, byMerchant = {}, byStore = {}, byCat = {}, byBranch = {}, bySup = {}, prod = {}; const repPerf = {};
   let sales = 0, disc = 0, qtyOut = 0;
   vouchers.forEach(v => {
-    sales += num(v.total); byRep[v.rep_name] = (byRep[v.rep_name] || 0) + num(v.total);
+    sales += num(v.total); disc += itemsTotal(v.items || []) * num(v.invoice_discount_pct) / 100; byRep[v.rep_name] = (byRep[v.rep_name] || 0) + num(v.total);
     byMerchant[v.merchant_label] = (byMerchant[v.merchant_label] || 0) + num(v.total);
     const sn = S.stores.find(s => s.id === v.store_id)?.name || (v.merchant_label || "").split(" - ")[0]; byStore[sn] = (byStore[sn] || 0) + num(v.total);
     if (v.supervisor_name) bySup[v.supervisor_name] = (bySup[v.supervisor_name] || 0) + num(v.total);

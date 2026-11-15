@@ -93,15 +93,49 @@ function askText(title, { label = "", type = "text", value = "", note = "", okTe
 }
 
 /* ---------- ملفات: حفظ / مشاركة (ويب + تطبيق الأندرويد) ---------- */
+const errMsg = e => String((e && (e.message || e.errorMessage || e.code)) || e || "خطأ غير معروف");
+const isCancel = e => /cancel/i.test(errMsg(e));
+function nativePlugin(name) {
+  const C = window.Capacitor; if (!C) return null;
+  try { if (C.Plugins && C.Plugins[name]) return C.Plugins[name]; } catch (e) { }
+  try { if (C.registerPlugin) return C.registerPlugin(name); } catch (e) { }
+  return null;
+}
+function b64ToBlob(b64, mime) {
+  const bin = atob(b64), u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return new Blob([u8], { type: mime });
+}
+async function webSaveFile(filename, base64, mime) {
+  const blob = b64ToBlob(base64, mime);
+  try {
+    const f = new File([blob], filename, { type: mime });
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: filename }); return; }
+  } catch (e) { if (isCancel(e)) return; }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
 async function saveBase64File(filename, base64, mime) {
-  if (isNative()) {
-    const FS = Capacitor.registerPlugin("Filesystem"), Share = Capacitor.registerPlugin("Share");
-    const r = await FS.writeFile({ path: filename, data: base64, directory: "CACHE" });
-    await Share.share({ title: filename, url: r.uri, dialogTitle: "مشاركة / حفظ" });
-  } else {
-    const a = document.createElement("a");
-    a.href = `data:${mime};base64,${base64}`; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  filename = String(filename).replace(/[\\/:*?"<>|\s]+/g, "-");
+  if (!isNative()) return webSaveFile(filename, base64, mime);
+  const FS = nativePlugin("Filesystem"), Share = nativePlugin("Share");
+  if (!FS) { try { return await webSaveFile(filename, base64, mime); } catch (e) { } throw new Error("إضافة الملفات (Filesystem) مش موجودة في التطبيق — ثبّت أحدث APK"); }
+  const ascii = filename.replace(/[^\w.\-]+/g, "-").replace(/-+/g, "-") || ("file-" + Date.now());
+  const tries = [["CACHE", filename], ["CACHE", ascii], ["DOCUMENTS", ascii]].filter((t, i, a) => a.findIndex(x => x[0] === t[0] && x[1] === t[1]) === i);
+  let lastErr = null;
+  for (const [dir, name] of tries) {
+    let uri;
+    try { uri = (await FS.writeFile({ path: name, data: base64, directory: dir })).uri; }
+    catch (e) { lastErr = e; console.error("writeFile", dir, e); continue; }
+    if (Share) {
+      try { await Share.share({ title: name, url: uri, dialogTitle: "مشاركة / حفظ" }); return; }
+      catch (e) { if (isCancel(e)) return; lastErr = e; console.error("share", e); }
+    }
+    if (dir === "DOCUMENTS") { toast("اتحفظ الملف في Documents باسم " + name, 5000); return; }
   }
+  try { return await webSaveFile(filename, base64, mime); } catch (e) { lastErr = lastErr || e; }
+  throw lastErr || new Error("فشل حفظ الملف");
 }
 function exportWorkbook(sheets, filename) {
   if (!window.XLSX) { toast("مكتبة Excel غير متاحة (محتاج إنترنت أول مرة)"); return; }
@@ -112,7 +146,7 @@ function exportWorkbook(sheets, filename) {
   });
   wb.Workbook = { Views: [{ RTL: true }] };
   const b64 = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
-  saveBase64File(filename + ".xlsx", b64, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").catch(e => { console.error(e); toast("تعذر حفظ الملف"); });
+  saveBase64File(filename + ".xlsx", b64, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").catch(e => { console.error(e); toast("تعذر حفظ الملف: " + errMsg(e), 7000); });
 }
 /* طباعة مستند: متصفح = window.print ، أندرويد = PDF ومشاركة */
 async function printDoc(elId, filename) {
@@ -121,7 +155,8 @@ async function printDoc(elId, filename) {
     if (!window.html2canvas || !window.jspdf) { toast("مكتبة PDF غير متاحة"); return; }
     toast("جاري تجهيز الملف...");
     const el = document.getElementById(elId);
-    const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" });
+    const scale = el.scrollHeight * 2 > 12000 ? 1 : 2;   // مستند طويل = دقة أقل علشان الموبايل مايخلصش الذاكرة
+    const canvas = await html2canvas(el, { scale, backgroundColor: "#ffffff", useCORS: true, logging: false });
     const { jsPDF } = window.jspdf; const pdf = new jsPDF("p", "mm", "a4");
     const w = 200, h = canvas.height * w / canvas.width, pageH = 287; let y = 5;
     const img = canvas.toDataURL("image/jpeg", .92);
@@ -133,7 +168,7 @@ async function printDoc(elId, filename) {
     }
     const b64 = pdf.output("datauristring").split(",")[1];
     await saveBase64File(filename + ".pdf", b64, "application/pdf");
-  } catch (e) { console.error(e); toast("تعذر تجهيز الملف"); }
+  } catch (e) { console.error(e); toast("تعذر تجهيز الملف: " + errMsg(e), 7000); }
 }
 
 /* ---------- صور ---------- */

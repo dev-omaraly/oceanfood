@@ -26,8 +26,8 @@
 npm install
 SUPABASE_URL="https://xxxx.supabase.co" \
 SUPABASE_SERVICE_KEY="service_role_key" \
-node supabase/migrate-firebase-to-supabase.mjs --branch "فرع حلوان" --dry   # تجربة بدون كتابة
-node supabase/migrate-firebase-to-supabase.mjs --branch "فرع حلوان"         # النقل الفعلي
+node supabase/migrate-firebase-to-supabase.mjs --branch "فرع الهرم" --dry   # تجربة بدون كتابة
+node supabase/migrate-firebase-to-supabase.mjs --branch "فرع الهرم"         # النقل الفعلي
 ```
 بينقل: الأصناف، الرصيد الافتتاحي، المناديب، المتاجر وفروعها، الأذون، المرتجعات، الوارد، الجرد، تسليمات وتفريغ المناديب، المستخدمين (بنفس الباسوردات لو 6 أحرف أو أكتر)، وبيكمّل الترقيم من آخر رقم.
 
@@ -39,3 +39,12 @@ node supabase/migrate-firebase-to-supabase.mjs --branch "فرع حلوان"     
 
 ## هيكل الدخول
 الفرع + باسورد الفرع ← اسم المستخدم + كلمة السر. السوبر أدمن بيدخل من زر "دخول الإدارة" ويقدر يبدّل بين الفروع. كل مستخدم بيشوف بيانات فرعه بس (مفروضة من قاعدة البيانات RLS).
+
+## 🔒 الأمان (تحديث)
+- **بعد أي تعديل في `supabase/schema.sql` شغّله كله تاني في SQL Editor** (آمن للتكرار ومابيمسحش بيانات). ده بيصلّح خطأ `gen_salt does not exist` عند تغيير أي باسورد.
+- باسورد الفرع / كلمة سر الحذف: 6 أحرف على الأقل. باسورد المستخدم: 8 أحرف على الأقل.
+- 5 محاولات غلط على باسورد (فرع / حذف / موافقة خصم) = قفل 10 دقايق + تسجيل في سجل النشاط.
+- الإذن بيتراجع من السيرفر: السعر لازم يطابق قاعدة البيانات والإجمالي بيتحسب في السيرفر.
+- متغيرات حساسة (service_role / Firebase key) بتتحط في متغيرات بيئة بس — `FIREBASE_API_KEY` بقى مطلوب لسكربت النقل.
+- فعّل **Enforce HTTPS** من GitHub: Settings ← Pages.
+- في Supabase: Authentication ← Rate Limits راجعها، و Attack Protection (CAPTCHA) لو متاح.

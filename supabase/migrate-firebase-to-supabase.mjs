@@ -6,7 +6,7 @@
      npm install
      SUPABASE_URL="https://xxxx.supabase.co" \
      SUPABASE_SERVICE_KEY="eyJ... (service_role)" \
-     node supabase/migrate-firebase-to-supabase.mjs --branch "فرع حلوان"
+     node supabase/migrate-firebase-to-supabase.mjs --branch "فرع الهرم"
 
    اختياري:  --dry   (يعدّ ويعرض بدون ما يكتب أي حاجة)
    مهم: مفتاح service_role سري — استخدمه على جهازك بس ومتحطوش في GitHub أو التطبيق.
@@ -19,9 +19,9 @@ const arg = n => { const i = process.argv.indexOf(n); return i > -1 ? process.ar
 const DRY = process.argv.includes("--dry");
 const BRANCH = arg("--branch");
 const FB_PROJECT = process.env.FIREBASE_PROJECT_ID || "oceanfood-inventory-baf80";
-const FB_KEY = process.env.FIREBASE_API_KEY || "AIzaSyBa9ZZAiju7y-O5FIyLkJi8pxBA1OuzStE";
+const FB_KEY = process.env.FIREBASE_API_KEY;   // لازم يتحط من متغير بيئة (مش مكتوب في الكود)
 const URL_ = process.env.SUPABASE_URL, KEY = process.env.SUPABASE_SERVICE_KEY;
-if (!BRANCH || !URL_ || !KEY) { console.error('لازم: --branch "اسم الفرع" + متغيرات SUPABASE_URL و SUPABASE_SERVICE_KEY'); process.exit(1); }
+if (!BRANCH || !URL_ || !KEY || !FB_KEY) { console.error('لازم: --branch "اسم الفرع" + متغيرات SUPABASE_URL و SUPABASE_SERVICE_KEY'); process.exit(1); }
 const sb = createClient(URL_, KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
 /* ---------- قراءة Firestore عبر REST ---------- */
